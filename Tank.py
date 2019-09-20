@@ -1,14 +1,21 @@
 import pygame,time,random
-SCREEN_WIDTH = 700
-SCREEN_HEIGHT = 500
+from pygame.sprite import Sprite
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 700
 BG_COLOR = pygame.Color(0,0,0)
 TEXT_COLOR = pygame.Color(255,0,0)
+class BaseItem(Sprite):
+    def __init__(self,color,width,height):
+        pygame.sprite.Sprite.__init__(self)
 class MainGame():
     window = None
     my_tank = None
     #地方坦克列表
     enemyTankList = []
     enemyTankCount = 5
+    myBulletList = []
+    enemyBulletlist = []
+    explodeList = []
     def __init__(self):
         pass
     #开始游戏
@@ -22,6 +29,7 @@ class MainGame():
         pygame.display.set_caption('坦克大战')
         MainGame.my_tank = Tank(350,250)
         self.createEnemyTank()
+
         #初始化地方坦克
         while True:
             #设置填充色
@@ -29,11 +37,20 @@ class MainGame():
             MainGame.window.fill(BG_COLOR)
             self.getEvent()
             #绘制文字
-            MainGame.window.blit(self.getTextSuface('敌方坦克剩余数量：%d'%5),(10,10))
-            MainGame.my_tank.displayTank()
+            MainGame.window.blit(self.getTextSuface('敌方坦克剩余数量：%d'%len(MainGame.enemyTankList)),(10,10))
+            if MainGame.my_tank and MainGame.my_tank.live:
+                MainGame.my_tank.displayTank()
+            else:
+                del MainGame.my_tank
+                MainGame.my_tank = None
+            # MainGame.my_tank.displayTank()
             self.blitEnemyTank()
-            if not MainGame.my_tank.stop:
-                MainGame.my_tank.move()
+            self.blitMyBullet()
+            self.blitEnemyBullet()
+            self.blitExplode()
+            if MainGame.my_tank and MainGame.my_tank.live:
+                if not MainGame.my_tank.stop:
+                    MainGame.my_tank.move()
             pygame.display.update()
 
     #初始化地方坦克，并将坦克添加到列表中
@@ -41,13 +58,46 @@ class MainGame():
         top = 100
         for i in range(MainGame.enemyTankCount):
             left = random.randint(0,600)
-            speed = random.randint(1,4)
+            speed = random.randint(1,2)
             enemy = EnemyTank(left,top,speed)
             MainGame.enemyTankList.append(enemy)
 
+    def blitMyBullet(self):
+        for myBullet in  MainGame.myBulletList:
+            if myBullet.live:
+                myBullet.displayBullet()
+                myBullet.move()
+                myBullet.myBullet_hit_enemyTank()
+            else:
+                MainGame.myBulletList.remove(myBullet)
+
     def blitEnemyTank(self):
         for enemyTank in MainGame.enemyTankList:
-            enemyTank.displayTank()
+            for enemyTank in MainGame.enemyTankList:
+                if enemyTank.live:
+                    enemyTank.displayTank()
+                    enemyTank.randMove()
+                    enemyBullet = enemyTank.shot()
+                    if enemyBullet:
+                        MainGame.enemyBulletlist.append(enemyBullet)
+                else:
+                    MainGame.enemyTankList.remove(enemyTank)
+    def blitEnemyBullet(self):
+        for enemyBullet in MainGame.enemyBulletlist:
+            if enemyBullet.live:
+                enemyBullet.displayBullet()
+                enemyBullet.move()
+                enemyBullet.enemyBullet_hit_myTank()
+            else:
+                MainGame.enemyBulletlist.remove(enemyBullet)
+
+    def blitExplode(self):
+        for explode in MainGame.explodeList:
+            if explode.live:
+                explode.displayExplode()
+            else:
+                MainGame.explodeList.remove(explode)
+
     #结束游戏
     def endGame(self):
         print('谢谢使用，bye')
@@ -68,35 +118,41 @@ class MainGame():
             if event.type == pygame.QUIT:
                 self.endGame()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    MainGame.my_tank.direction = 'L'
-                    # MainGame.my_tank.move()
-                    MainGame.my_tank.stop = False
-                    print('左键被按下，坦克向左移动')
-                elif event.key == pygame.K_RIGHT:
-                    MainGame.my_tank.direction = 'R'
-                    # MainGame.my_tank.move()
-                    MainGame.my_tank.stop = False
-                    print('右键被按下，坦克向右移动')
-                elif event.key == pygame.K_UP:
-                    MainGame.my_tank.direction = 'U'
-                    # MainGame.my_tank.move()
-                    MainGame.my_tank.stop = False
-                    print('上键被按下，坦克向上移动')
-                elif event.key == pygame.K_DOWN:
-                    MainGame.my_tank.direction = 'D'
-                    # MainGame.my_tank.move()
-                    MainGame.my_tank.stop = False
-                    print('下键被按下，坦克向下移动')
-                elif event.key == pygame.K_SPACE:
-                    print('发射子弹')
+                if MainGame.my_tank and MainGame.my_tank.live:
+                    if event.key == pygame.K_LEFT:
+                        MainGame.my_tank.direction = 'L'
+                        # MainGame.my_tank.move()
+                        MainGame.my_tank.stop = False
+                        print('左键被按下，坦克向左移动')
+                    elif event.key == pygame.K_RIGHT:
+                        MainGame.my_tank.direction = 'R'
+                        # MainGame.my_tank.move()
+                        MainGame.my_tank.stop = False
+                        print('右键被按下，坦克向右移动')
+                    elif event.key == pygame.K_UP:
+                        MainGame.my_tank.direction = 'U'
+                        # MainGame.my_tank.move()
+                        MainGame.my_tank.stop = False
+                        print('上键被按下，坦克向上移动')
+                    elif event.key == pygame.K_DOWN:
+                        MainGame.my_tank.direction = 'D'
+                        # MainGame.my_tank.move()
+                        MainGame.my_tank.stop = False
+                        print('下键被按下，坦克向下移动')
+                    elif event.key == pygame.K_SPACE:
+                        print('发射子弹')
+                        if len(MainGame.myBulletList) < 3:
+                            myBullet = Bullet(MainGame.my_tank)
+                            MainGame.myBulletList.append(myBullet)
+
 
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_UP or event.key == pygame.K_DOWN or event.key == pygame.K_LEFT\
                         or event.key == pygame.K_RIGHT:
-                    MainGame.my_tank.stop = True
+                    if MainGame.my_tank and MainGame.my_tank.live:
+                        MainGame.my_tank.stop = True
 
-class Tank:
+class Tank(BaseItem):
     def __init__(self,left,top):
         self.images = {
             'U':pygame.image.load('icon/tank_U.png'),
@@ -115,6 +171,7 @@ class Tank:
         self.speed = 10
         #坦克移动开关
         self.stop = True
+        self.live = True
     #移动
     def move(self):
         #判断坦克的方向进行移动
@@ -122,7 +179,7 @@ class Tank:
             if self.rect.left > 0:
                 self.rect.left  -= self.speed
         elif self.direction == 'U':
-            if self.rect.top >0:
+            if self.rect.top > 0:
                 self.rect.top -= self.speed
         elif self.direction == 'D':
             if self.rect.top + self.rect.height < SCREEN_HEIGHT:
@@ -133,7 +190,7 @@ class Tank:
 
     # 射击
     def shot(self):
-        pass
+        return Bullet(self)
 
     # 展示坦克方法
     def displayTank(self):
@@ -153,6 +210,7 @@ class MyTank(Tank):
 class EnemyTank(Tank):
     def __init__(self,left,top,speed):
         #加载图片集
+        super(EnemyTank,self).__init__(left,top)
         self.images = {
             'U':pygame.image.load('icon/EnemyTank_U.png'),
             'R':pygame.image.load('icon/EnemyTank_R.png'),
@@ -168,6 +226,15 @@ class EnemyTank(Tank):
         self.rect.top = top
         self.speed = speed
         self.flag = True
+        self.step = 40
+
+    def randMove(self):
+        if self.step <=0 :
+            self.direction = self.randDirection()
+            self.step = 40
+        else :
+            self.move()
+            self.step -=1
 
 
 
@@ -181,18 +248,79 @@ class EnemyTank(Tank):
             return 'L'
         elif num == 4:
             return 'R'
+
+    def shot(self):
+        num = random.randint(1,20)
+        if num <2:
+            return Bullet(self)
 # 子弹类
-class Bullet():
-    def __init__(self):
-        pass
+class Bullet(BaseItem):
+    def __init__(self,tank):
+        self.image = pygame.image.load('icon/bullet.png')
+        self.direction = tank.direction
+        self.rect = self.image.get_rect()
+        if self.direction == 'U':
+            self.rect.left = tank.rect.left +tank.rect.width/2 - self.rect.width/2
+            self.rect.top = tank.rect.top -self.rect.height
+        elif self.direction == 'D':
+            self.rect.left =tank.rect.left +tank.rect.width/2 - self.rect.width / 2
+            self.rect.top = tank.rect.top + tank.rect.height
+        elif self.direction == 'L':
+            self.rect.left = tank.rect.left - self.rect.width / 2 - self.rect.width /2
+            self.rect.top = tank.rect.top + tank.rect.width /2 -self.rect.width /2
+        elif self.direction == 'R':
+            self.rect.left = tank.rect.left + tank.rect.width
+            self.rect.top = tank.rect.top + tank.rect.width / 2 - self.rect.width / 2
+
+        self.speed = 15
+        self.live = True
     # 移动
 
     def move(self):
-        pass
+        if self.direction == 'U':
+            if self.rect.top > 0 :
+                self.rect.top -= self.speed
+            else :
+                self.live = False
+        elif self.direction == 'R':
+            if self.rect.left + self.rect.width < SCREEN_WIDTH:
+                self.rect.left +=self.speed
+            else :
+                self.live = False
+        elif self.direction == 'D':
+            if self.rect.top + self.rect.height < SCREEN_HEIGHT:
+                self.rect.top +=self.speed
+            else :
+                self.live = False
+        elif self.direction == 'L':
+            if self.rect.left > 0:
+                self.rect.left -=self.speed
+            else:
+                self.live = False
+
 
     #展示子弹的方法
     def displayBullet(self):
-        pass
+        MainGame.window.blit(self.image,self.rect)
+
+    def myBullet_hit_enemyTank(self):
+        for enemyTank in MainGame.enemyTankList:
+            if pygame.sprite.collide_circle(enemyTank,self):
+                enemyTank.live = False
+                self.live = False
+                explode = Explode(enemyTank)
+                MainGame.explodeList.append(explode)
+
+    def enemyBullet_hit_myTank(self):
+        if MainGame.my_tank and MainGame.my_tank.live:
+            if pygame.sprite.collide_rect(MainGame.my_tank, self):
+                # 产生爆炸对象
+                explode = Explode(self)
+                MainGame.explodeList.append(explode)
+                self.live = False
+                MainGame.my_tank.live = False
+
+
 #墙壁类
 class Wall():
     def __init__(self):
@@ -203,12 +331,31 @@ class Wall():
         pass
 #爆炸类
 class Explode():
-    def __init__(self):
-        pass
+    def __init__(self,tank):
+        self.rect = tank.rect
+        self.images = [
+            pygame.image.load('icon/b0.png'),
+            pygame.image.load('icon/b1.png'),
+            pygame.image.load('icon/b2.png'),
+            pygame.image.load('icon/b3.png'),
+            pygame.image.load('icon/b4.png'),
+            pygame.image.load('icon/b5.png'),
+            pygame.image.load('icon/b6.png'),
+        ]
+        self.step = 0
+        self.image = self.images[self.step]
+        self.live = True
 
     #展示爆炸效果方法
     def displayExplode(self):
-        pass
+        if self.step<len(self.images):
+            self.image = self.images[self.step]
+            self.step+=1
+            MainGame.window.blit(self.image,self.rect)
+        else:
+            self.live = False
+            self.step = 0
+
 #音乐类
 class Music():
     def __init__(self):
