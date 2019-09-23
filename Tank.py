@@ -16,6 +16,7 @@ class MainGame():
     myBulletList = []
     enemyBulletlist = []
     explodeList = []
+    wallList = []
     def __init__(self):
         pass
     #开始游戏
@@ -25,11 +26,12 @@ class MainGame():
         pygame.display.init()
         #设置窗口的大小及显示
         MainGame.window = pygame.display.set_mode([SCREEN_WIDTH,SCREEN_HEIGHT])
+        self.createMytank()
         #设置窗口的标题
         pygame.display.set_caption('坦克大战')
-        MainGame.my_tank = Tank(350,250)
+        MainGame.my_tank = Tank(350,350)
         self.createEnemyTank()
-
+        self.createWall()
         #初始化地方坦克
         while True:
             #设置填充色
@@ -48,11 +50,20 @@ class MainGame():
             self.blitMyBullet()
             self.blitEnemyBullet()
             self.blitExplode()
+            self.blitWall()
             if MainGame.my_tank and MainGame.my_tank.live:
                 if not MainGame.my_tank.stop:
                     MainGame.my_tank.move()
+                    #检测碰撞
+                    MainGame.my_tank.hitWall()
             pygame.display.update()
-
+    def createWall(self):
+        for i in range(6):
+            wall = Wall(i*130,220)
+            MainGame.wallList.append(wall)
+    #创建我方坦克的方法
+    def createMytank(self):
+        MainGame.my_tank = Tank(350,350)
     #初始化地方坦克，并将坦克添加到列表中
     def createEnemyTank(self):
         top = 100
@@ -62,12 +73,19 @@ class MainGame():
             enemy = EnemyTank(left,top,speed)
             MainGame.enemyTankList.append(enemy)
 
+    def blitWall(self):
+        for wall in MainGame.wallList:
+            if wall.live:
+                wall.displayWall()
+            else:
+                MainGame.wallList.remove(wall)
     def blitMyBullet(self):
         for myBullet in  MainGame.myBulletList:
             if myBullet.live:
                 myBullet.displayBullet()
                 myBullet.move()
                 myBullet.myBullet_hit_enemyTank()
+                myBullet.hitWall()
             else:
                 MainGame.myBulletList.remove(myBullet)
 
@@ -88,6 +106,7 @@ class MainGame():
                 enemyBullet.displayBullet()
                 enemyBullet.move()
                 enemyBullet.enemyBullet_hit_myTank()
+                enemyBullet.hitWall()
             else:
                 MainGame.enemyBulletlist.remove(enemyBullet)
 
@@ -118,6 +137,11 @@ class MainGame():
             if event.type == pygame.QUIT:
                 self.endGame()
             if event.type == pygame.KEYDOWN:
+                #当坦克不存在或者死亡
+                if not MainGame.my_tank:
+                    #判断按下的是esc，让坦克重生
+                    if event.key == pygame.K_ESCAPE:
+                        self.createMytank()
                 if MainGame.my_tank and MainGame.my_tank.live:
                     if event.key == pygame.K_LEFT:
                         MainGame.my_tank.direction = 'L'
@@ -172,8 +196,13 @@ class Tank(BaseItem):
         #坦克移动开关
         self.stop = True
         self.live = True
+        self.oldLeft = self.rect.left
+        self.oldTop = self.rect.top
+
     #移动
     def move(self):
+        self.oldLeft = self.rect.left
+        self.oldTop = self.rect.top
         #判断坦克的方向进行移动
         if self.direction == 'L':
             if self.rect.left > 0:
@@ -191,7 +220,13 @@ class Tank(BaseItem):
     # 射击
     def shot(self):
         return Bullet(self)
-
+    def stay(self):
+        self.rect.left = self.oldLeft
+        self.rect.top  = self.oldTop
+    def hitWall(self):
+        for wall in MainGame.wallList:
+            if pygame.sprite.collide_rect(self,wall):
+                self.stay()
     # 展示坦克方法
     def displayTank(self):
         #获取展示的对象
@@ -298,6 +333,15 @@ class Bullet(BaseItem):
             else:
                 self.live = False
 
+    def hitWall(self):
+        for wall in MainGame.wallList:
+            if pygame.sprite.collide_rect(self,wall):
+                self.live = False
+                wall.hp -=1
+                if wall.hp<=0:
+                    #修改墙壁的生存状态
+                    wall.live = False
+
 
     #展示子弹的方法
     def displayBullet(self):
@@ -323,12 +367,19 @@ class Bullet(BaseItem):
 
 #墙壁类
 class Wall():
-    def __init__(self):
-        pass
+    def __init__(self,left,top):
+        self.image = pygame.image.load('icon/wall_1.bmp')
+        self.rect = self.image.get_rect()
+        self.rect.left = left
+        self.rect.top = top
+        self.live = True
+        self.hp = 3
+        #设置生命值
+
 
     #展示墙壁方法
     def displayWall(self):
-        pass
+        MainGame.window.blit(self.image,self.rect)
 #爆炸类
 class Explode():
     def __init__(self,tank):
